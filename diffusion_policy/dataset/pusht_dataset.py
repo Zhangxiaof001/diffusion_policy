@@ -11,31 +11,40 @@ from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
 
 class PushTLowdimDataset(BaseLowdimDataset):
     def __init__(self, 
-            zarr_path, 
-            horizon=1,
-            pad_before=0,
-            pad_after=0,
-            obs_key='keypoint',
-            state_key='state',
-            action_key='action',
-            seed=42,
-            val_ratio=0.0,
-            max_train_episodes=None
+            zarr_path,  # zarr文件路径，用于加载数据
+            horizon=1,  # 序列长度
+            pad_before=0,  # 序列前填充长度
+            pad_after=0,  # 序列后填充长度
+            obs_key='keypoint',  # 观察数据的键名
+            state_key='state',  # 状态数据的键名
+            action_key='action',  # 动作数据的键名
+            seed=42,  # 随机种子，用于reproducibility
+            val_ratio=0.0,  # 验证集比例
+            max_train_episodes=None  # 最大训练episode数，用于限制训练集大小
             ):
+        # 调用父类的初始化方法
         super().__init__()
+        
+        # 从zarr文件中加载数据到replay buffer
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=[obs_key, state_key, action_key])
 
+        # 生成验证集掩码
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
             seed=seed)
+        
+        # 生成训练集掩码
         train_mask = ~val_mask
+        
+        # 如果指定了最大训练集大小，对训练集进行下采样
         train_mask = downsample_mask(
             mask=train_mask, 
             max_n=max_train_episodes, 
             seed=seed)
 
+        # 初始化序列采样器
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
             sequence_length=horizon,
@@ -43,6 +52,8 @@ class PushTLowdimDataset(BaseLowdimDataset):
             pad_after=pad_after,
             episode_mask=train_mask
             )
+        
+        # 保存各种参数
         self.obs_key = obs_key
         self.state_key = state_key
         self.action_key = action_key

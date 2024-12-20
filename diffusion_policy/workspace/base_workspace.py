@@ -19,9 +19,11 @@ class BaseWorkspace:
         self._output_dir = output_dir
         self._saving_thread = None
 
+    # @property 装饰器用于将方法转换为属性，使其可以像访问属性一样被调用，而不需要加括号。
     @property
     def output_dir(self):
         output_dir = self._output_dir
+        # 如果输出目录未设置，则使用Hydra的默认输出目录
         if output_dir is None:
             output_dir = HydraConfig.get().runtime.output_dir
         return output_dir
@@ -74,14 +76,19 @@ class BaseWorkspace:
         return pathlib.Path(self.output_dir).joinpath('checkpoints', f'{tag}.ckpt')
 
     def load_payload(self, payload, exclude_keys=None, include_keys=None, **kwargs):
+        # 如果未指定排除的键，则初始化为空元组
         if exclude_keys is None:
             exclude_keys = tuple()
+        # 如果未指定包含的键，则使用payload中'pickles'的所有键
         if include_keys is None:
             include_keys = payload['pickles'].keys()
 
+        # 遍历payload中的'state_dicts'，加载状态字典
         for key, value in payload['state_dicts'].items():
             if key not in exclude_keys:
                 self.__dict__[key].load_state_dict(value, **kwargs)
+        
+        # 遍历指定包含的键，从pickles中加载并反序列化数据
         for key in include_keys:
             if key in payload['pickles']:
                 self.__dict__[key] = dill.loads(payload['pickles'][key])
@@ -90,16 +97,23 @@ class BaseWorkspace:
             exclude_keys=None, 
             include_keys=None, 
             **kwargs):
+        # 如果未指定路径，则使用默认的检查点路径
         if path is None:
             path = self.get_checkpoint_path(tag=tag)
         else:
             path = pathlib.Path(path)
+        
+        # 加载检查点文件
         payload = torch.load(path.open('rb'), pickle_module=dill, **kwargs)
+        
+        # 从加载的payload中恢复模型状态
         self.load_payload(payload, 
             exclude_keys=exclude_keys, 
             include_keys=include_keys)
         return payload
     
+    # @classmethod装饰器的作用是将方法定义为类方法。
+    # 类方法可以在不创建类实例的情况下被调用，并且第一个参数是类本身而不是实例。
     @classmethod
     def create_from_checkpoint(cls, path, 
             exclude_keys=None, 
@@ -128,6 +142,15 @@ class BaseWorkspace:
     
     @classmethod
     def create_from_snapshot(cls, path):
+        """
+        从快照文件创建实例。
+
+        参数:
+        path (str): 快照文件的路径。
+
+        返回:
+        BaseWorkspace: 从快照文件加载的 BaseWorkspace 实例。
+        """
         return torch.load(open(path, 'rb'), pickle_module=dill)
 
 

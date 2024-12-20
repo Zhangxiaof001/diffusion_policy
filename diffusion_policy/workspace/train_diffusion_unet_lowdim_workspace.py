@@ -41,23 +41,32 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
 
         # set seed
         seed = cfg.training.seed
+        # 为PyTorch设置随机种子
         torch.manual_seed(seed)
+        # 为NumPy设置随机种子
         np.random.seed(seed)
+        # 为Python的random模块设置随机种子
         random.seed(seed)
 
         # configure model
         self.model: DiffusionUnetLowdimPolicy
+        # 使用hydra.utils.instantiate根据配置文件中的policy部分来实例化模型
         self.model = hydra.utils.instantiate(cfg.policy)
 
+        # 初始化EMA模型为None
         self.ema_model: DiffusionUnetLowdimPolicy = None
+        # 如果配置中启用了EMA（Exponential Moving Average）
         if cfg.training.use_ema:
+            # 创建模型的深拷贝作为EMA模型
             self.ema_model = copy.deepcopy(self.model)
 
         # configure training state
         self.optimizer = hydra.utils.instantiate(
             cfg.optimizer, params=self.model.parameters())
 
+        # 初始化全局步数为0
         self.global_step = 0
+        # 初始化轮次为0
         self.epoch = 0
 
     def run(self):
@@ -68,6 +77,7 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
             lastest_ckpt_path = self.get_checkpoint_path()
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
+                # 注意：load_checkpoint方法会自动将模型参数加载到self.model中
                 self.load_checkpoint(path=lastest_ckpt_path)
 
         # configure dataset
@@ -295,9 +305,10 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                 self.epoch += 1
 
 @hydra.main(
-    version_base=None,
-    config_path=str(pathlib.Path(__file__).parent.parent.joinpath("config")), 
-    config_name=pathlib.Path(__file__).stem)
+    version_base=None,  # 版本基础，设置为 None
+    config_path=str(pathlib.Path(__file__).parent.parent.joinpath("config")),  # 配置文件路径
+    config_name=pathlib.Path(__file__).stem  # 配置文件名，使用当前文件的名称（不包含扩展名）
+)
 def main(cfg):
     workspace = TrainDiffusionUnetLowdimWorkspace(cfg)
     workspace.run()
