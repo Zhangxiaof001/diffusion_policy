@@ -28,16 +28,22 @@ class TransformerForDiffusion(ModuleAttrMixin):
 
         # compute number of tokens for main trunk and condition encoder
         if n_obs_steps is None:
-            n_obs_steps = horizon
+            n_obs_steps = horizon  # 如果未指定观察步数，则设置为与horizon相同
         
+        # T表示预测的时间步长，等于horizon参数
         T = horizon
+        # T_cond表示条件序列的时间步长，初始设为1
         T_cond = 1
         if not time_as_cond:
+            # 如果不使用时间作为条件，则预测步长加1，条件步长减1
             T += 1
             T_cond -= 1
+        # obs_as_cond表示是否使用观察值作为条件（当条件维度大于0时）
         obs_as_cond = cond_dim > 0
         if obs_as_cond:
+            # 如果使用观察值作为条件，必须同时使用时间作为条件
             assert time_as_cond
+            # 条件步长需要加上观察步数
             T_cond += n_obs_steps
 
         # input embedding stem
@@ -46,10 +52,11 @@ class TransformerForDiffusion(ModuleAttrMixin):
         self.drop = nn.Dropout(p_drop_emb)
 
         # cond encoder
-        self.time_emb = SinusoidalPosEmb(n_emb)
+        self.time_emb = SinusoidalPosEmb(n_emb) # sinusoidal embedding, shape: (T, n_emb)
         self.cond_obs_emb = None
         
         if obs_as_cond:
+            # 如果使用观察值作为条件, 则需要一个额外的嵌入层
             self.cond_obs_emb = nn.Linear(cond_dim, n_emb)
 
         self.cond_pos_emb = None
@@ -57,8 +64,11 @@ class TransformerForDiffusion(ModuleAttrMixin):
         self.decoder = None
         encoder_only = False
         if T_cond > 0:
+            # encoder and decoder architecture
             self.cond_pos_emb = nn.Parameter(torch.zeros(1, T_cond, n_emb))
+            # 1. encoder
             if n_cond_layers > 0:
+                # transformer encoder
                 encoder_layer = nn.TransformerEncoderLayer(
                     d_model=n_emb,
                     nhead=n_head,
@@ -68,17 +78,21 @@ class TransformerForDiffusion(ModuleAttrMixin):
                     batch_first=True,
                     norm_first=True
                 )
+                # the number of layers for transformer encoder is n_cond_layers
                 self.encoder = nn.TransformerEncoder(
                     encoder_layer=encoder_layer,
                     num_layers=n_cond_layers
                 )
             else:
+                # MLP encoder
                 self.encoder = nn.Sequential(
                     nn.Linear(n_emb, 4 * n_emb),
                     nn.Mish(),
                     nn.Linear(4 * n_emb, n_emb)
                 )
-            # decoder
+                
+            # 2. decoder
+            # Transformer decoder
             decoder_layer = nn.TransformerDecoderLayer(
                 d_model=n_emb,
                 nhead=n_head,
@@ -88,14 +102,16 @@ class TransformerForDiffusion(ModuleAttrMixin):
                 batch_first=True,
                 norm_first=True # important for stability
             )
+            # the number of layers for transformer decoder is n_layer
             self.decoder = nn.TransformerDecoder(
                 decoder_layer=decoder_layer,
                 num_layers=n_layer
             )
         else:
-            # encoder only BERT
+            # encoder only BERT architecture
             encoder_only = True
 
+            # transformer encoder
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=n_emb,
                 nhead=n_head,
@@ -105,6 +121,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
                 batch_first=True,
                 norm_first=True
             )
+            # the number of layers for transformer encoder is n_layer
             self.encoder = nn.TransformerEncoder(
                 encoder_layer=encoder_layer,
                 num_layers=n_layer

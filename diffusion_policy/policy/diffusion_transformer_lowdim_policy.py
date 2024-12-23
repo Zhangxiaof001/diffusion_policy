@@ -28,8 +28,11 @@ class DiffusionTransformerLowdimPolicy(BaseLowdimPolicy):
         if pred_action_steps_only:
             assert obs_as_cond
 
+        # 初始化模型和噪声调度器
         self.model = model
         self.noise_scheduler = noise_scheduler
+        
+        # 创建掩码生成器
         self.mask_generator = LowdimMaskGenerator(
             action_dim=action_dim,
             obs_dim=0 if (obs_as_cond) else obs_dim,
@@ -37,7 +40,11 @@ class DiffusionTransformerLowdimPolicy(BaseLowdimPolicy):
             fix_obs_steps=True,
             action_visible=False
         )
+        
+        # 初始化归一化器
         self.normalizer = LinearNormalizer()
+        
+        # 设置各种参数
         self.horizon = horizon
         self.obs_dim = obs_dim
         self.action_dim = action_dim
@@ -47,6 +54,7 @@ class DiffusionTransformerLowdimPolicy(BaseLowdimPolicy):
         self.pred_action_steps_only = pred_action_steps_only
         self.kwargs = kwargs
 
+        # 设置推理步数
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps

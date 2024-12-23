@@ -20,30 +20,37 @@ obs_as_cond: True
 pred_action_steps_only: False
 
 policy:
+  # 指定策略类的完整路径
   _target_: diffusion_policy.policy.diffusion_transformer_lowdim_policy.DiffusionTransformerLowdimPolicy
 
   model:
+    # 指定模型类的完整路径
     _target_: diffusion_policy.model.diffusion.transformer_for_diffusion.TransformerForDiffusion
     input_dim: ${eval:'${action_dim} if ${obs_as_cond} else ${obs_dim} + ${action_dim}'}
     output_dim: ${policy.model.input_dim}
+    # 预测的时间步长(输出)
     horizon: ${horizon}
+    # 观测的时间步长(输入)
     n_obs_steps: ${n_obs_steps}
+    # 条件维度，如果obs_as_cond为true则使用观察维度，否则为0
     cond_dim: ${eval:'${obs_dim} if ${obs_as_cond} else 0'}
 
-    n_layer: 8
-    n_head: 4
-    n_emb: 256
-    p_drop_emb: 0.0
-    p_drop_attn: 0.01
+    # transformer params
+    n_layer: 8          # number of transformer layers
+    n_head: 4           # number of attention heads
+    n_emb: 256          # embedding dimension
+    p_drop_emb: 0.0     # dropout rate for embedding
+    p_drop_attn: 0.01   # dropout rate for attention
 
-    causal_attn: True
-    time_as_cond: True # if false, use BERT like encoder only arch, time as input
-    obs_as_cond: ${obs_as_cond}
+    causal_attn: True   # 是否使用因果注意力?
+    time_as_cond: True  # if false, use BERT like encoder only arch, time as input
+    obs_as_cond: ${obs_as_cond}  # 是否将观察作为条件
     n_cond_layers: 0 # >0: use transformer encoder for cond, otherwise use MLP
   
   noise_scheduler:
+    # 扩散模型噪声调度器的完整路径
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
-    num_train_timesteps: 100
+    num_train_timesteps: 100.
     beta_start: 0.0001
     beta_end: 0.02
     beta_schedule: squaredcos_cap_v2

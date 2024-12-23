@@ -4,42 +4,64 @@ import numba
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 
 
+# @numba.jit(nopython=True)装饰器是为了使用Numba进行即时编译（JIT），提高函数的执行速度。
 @numba.jit(nopython=True)
 def create_indices(
     episode_ends:np.ndarray, sequence_length:int, 
     episode_mask: np.ndarray,
     pad_before: int=0, pad_after: int=0,
     debug:bool=True) -> np.ndarray:
+    """
+    从轨迹数据中创建采样索引
+    
+    参数:
+    episode_ends: 每个episode结束的索引数组
+    sequence_length: 需要采样的序列长度
+    episode_mask: episode的掩码数组, 用于跳过某些episode
+    pad_before: 序列开始前的填充长度
+    pad_after: 序列结束后的填充长度
+    debug: 是否开启调试模式
+    """
     episode_mask.shape == episode_ends.shape        
+    # 确保填充长度在有效范围内
     pad_before = min(max(pad_before, 0), sequence_length-1)
     pad_after = min(max(pad_after, 0), sequence_length-1)
 
     indices = list()
     for i in range(len(episode_ends)):
         if not episode_mask[i]:
-            # skip episode
+            # 跳过被掩码的episode
             continue
+        # 计算当前episode的起始和结束索引
         start_idx = 0
         if i > 0:
             start_idx = episode_ends[i-1]
         end_idx = episode_ends[i]
         episode_length = end_idx - start_idx
         
+        # 计算采样的起始位置范围
         min_start = -pad_before
         max_start = episode_length - sequence_length + pad_after
         
         # range stops one idx before end
         for idx in range(min_start, max_start+1):
+            # 计算实际的缓冲区起始和结束位置
             buffer_start_idx = max(idx, 0) + start_idx
             buffer_end_idx = min(idx+sequence_length, episode_length) + start_idx
+            # 计算采样偏移量
             start_offset = buffer_start_idx - (idx+start_idx)
             end_offset = (idx+sequence_length+start_idx) - buffer_end_idx
+            # 计算最终的采样索引
             sample_start_idx = 0 + start_offset
             sample_end_idx = sequence_length - end_offset
+            
             if debug:
+                # 验证索引的有效性
                 assert(start_offset >= 0)
                 assert(end_offset >= 0)
                 assert (sample_end_idx - sample_start_idx) == (buffer_end_idx - buffer_start_idx)
+            
+            # 存储采样索引：[缓冲区起始索引, 缓冲区结束索引, 样本起始索引, 样本结束索引]
             indices.append([
                 buffer_start_idx, buffer_end_idx, 
                 sample_start_idx, sample_end_idx])
@@ -76,13 +98,13 @@ def downsample_mask(mask, max_n, seed=0):
 
 class SequenceSampler:
     def __init__(self, 
-        replay_buffer: ReplayBuffer, 
-        sequence_length:int,
-        pad_before:int=0,
-        pad_after:int=0,
+        replay_buffer: ReplayBuffer,  # 回放缓冲区，存储演示数据
+        sequence_length: int,  # 采样序列的长度
+        pad_before: int = 0,  # 序列开始前的填充长度
+        pad_after: int = 0,  # 序列结束后的填充长度
         keys=None,
-        key_first_k=dict(),
-        episode_mask: Optional[np.ndarray]=None,
+        key_first_k: dict = dict(),  # 指定某些键只采样前k个数据，用于提高性能
+        episode_mask: Optional[np.ndarray] = None,  # 用于选择特定episode的掩码
         ):
         """
         key_first_k: dict str: int
@@ -90,11 +112,15 @@ class SequenceSampler:
         """
 
         super().__init__()
-        assert(sequence_length >= 1)
+        assert(sequence_length >= 1)  # 确保序列长度至少为1
+
+        # 如果未指定keys，则使用replay_buffer中的所有键
         if keys is None:
             keys = list(replay_buffer.keys())
         
+        # 获取所有episode的结束索引
         episode_ends = replay_buffer.episode_ends[:]
+        # 如果未提供episode_mask，则创建一个全为True的掩码
         if episode_mask is None:
             episode_mask = np.ones(episode_ends.shape, dtype=bool)
 
@@ -119,6 +145,12 @@ class SequenceSampler:
         return len(self.indices)
         
     def sample_sequence(self, idx):
+        """
+        从指定索引采样序列数据
+        
+        参数:
+        idx: 采样索引
+        """
         buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx \
             = self.indices[idx]
         result = dict()
